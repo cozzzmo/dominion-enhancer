@@ -1,108 +1,122 @@
 // ==UserScript==
-// @name       nick's dominion enhancer
-// @namespace  http://use.i.E.your.homepage/
-// @version    0.1
-// @description  enter something useful
-// @require        http://ajax.googleapis.com/ajax/libs/jquery/1.3.2/jquery.min.js
+// @name       theateam dominion enhancer
+// @namespace  https://github.com/cozzzmo/dominion-enhancer
+// @version    0.2
+// @description  converts the lame generic cards into real card images
+// @require        http://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js
 // @match      *dominion.isotropic.org*
-// @copyright  2012+, You
+// @copyright  2012+, theateam
 // ==/UserScript==
+
+addslashes = function(str) {
+    return (str + '').replace(/[\\"']/g, '\\$&').replace(/\u0000/g, '\\0');
+};
 
 window.SuperDominion = new function() {
     var self = this;
     var current_hand;
     self.cards = {};
+            
+    self.learnCard = function(name) {
+        if (!self.cards[name]) {
+            self.cards[name] = new self.Card(name);
+        }
+    };
     
     self.redrawUI = function() {
-        self.redrawHand();
-    };
-    
-    self.redrawHand = function() {
-        var hand = new self.hand();
+        var hand = new self.Hand();
         hand.draw();
     };
-    window.setInterval(self.redrawUI, 500);
+    
+    window.setInterval(self.redrawUI, 100);
 };
 
-window.SuperDominion.hand = function(name) {
+window.SuperDominion.Hand = function(name) {
     var self = this;
-    var cards;
-    var drawn = false;
     
-    self.toString = function() {
-        var s = '';
-        for (var i in cards) {
-            s += cards[i] + ' ' + i + '; ';
+    self.cards = {};
+    
+    var loadFromCache = function() {
+        if (!$('.hand').data('loaded')) {
+            return false;
         }
-        return s;
+        self = $('.hand').data('loaded');
+        return true;
+    };
+    
+    var cardsAreReady = function() {
+        for (name in self.cards) {
+            if (! window.SuperDominion.cards[name].ready) {
+                return false;
+            }
+        }
+        return true;
+    };
+    
+    var alreadyDrawn = function() {
+        if ($('.hand').data('drawn')) {
+            return true;
+        }
+        return false;
+    };
+    
+    var drawHand = function() {
+        var max_count = 0;
+        for (name in self.cards) {
+            var count = self.cards[name];
+            $('.hand div[cardname="' + name + '"]')
+                .html(window.SuperDominion.cards[name].draw(count))
+                .css('width', 114+((count-1)*20)+10);
+            if (count > max_count) {
+                max_count = count;
+            }
+        }
+        $('.hand div').css('position', 'relative');
+        $('.hand')
+            .css('position', 'relative')
+            .css('vertical-align', 'top')
+            .css('vertical-align', 'top')
+            .height(181+10+(15*max_count))
+            .data('drawn', true);
+    };
+    
+    self.draw = function() {
+        if (alreadyDrawn()) {
+            return true;
+        }
+        if (!cardsAreReady()) {
+            return false;
+        }
+        drawHand();
+        return true;
     };
     
     self.load = function() {
-        drawn = false;
-        if ($('.hand').data('redrawn')) {
-            drawn = true;
-            self = $('.hand').data('redrawn');
+        if (loadFromCache()) {
             return;
         }
         cards = {};
         $(document).find('.hand').find('.imcard').each(function() {
-            var count = 1;
             var card_name = $(this).find('div:first').attr('cardname');
+            var count = 1;
             $(this).find('br').each(function() {
                 count++;
             });
-            cards[card_name] = count;
+            window.SuperDominion.learnCard(card_name);
+            self.cards[card_name] = count;
         });
-        console.log('new hand' + self.toString());
-    };
-    
-    self.draw = function() {
-        if (!drawn) {
-            for (name in cards) {
-                if (! window.SuperDominion.cards[name]) {
-                    window.SuperDominion.cards[name] = new window.SuperDominion.card(name);
-                }
-            }
-            var fail = false;
-            for (name in cards) {
-                if (! window.SuperDominion.cards[name].ready) {
-                    fail = true;
-                } else {
-                    var count = cards[name];
-                    $('.hand div[cardname=' + name + ']').html(window.SuperDominion.cards[name].draw(count));
-                }
-            }
-            if (fail) {
-                $('.hand').data('redrawn', false);
-            }
-            else {
-                $('.hand').data('redrawn', self);
-            }
-        }
+        $('.hand').data('loaded', self);
     };
     
    self.load();
 };
 
-window.SuperDominion.card = function(name) {
+window.SuperDominion.Card = function(name) {
     var name = name;
     var img_url;
     var self = this;
     
     self.ready = false;
-    
-    self.draw = function(count) {
-        while (!img_url) {
-        }
-        console.log('draw: ' + img_url);
-        var rendering = '';
-        for (var i=0; i<count; i++) {
-            var top = i*15;
-            var left = i*-100;
-            rendering += '<img style="position:relative;top:'+top+'px;left:'+left+'px;width:114px;height:182px;" src="' + img_url + '">';
-        }
-        return rendering;
-    };
     
     var getImageUrl = function() {
         var the_url = "http://dominion.diehrstraits.com/?card=" + encodeURI(name);        
@@ -111,12 +125,24 @@ window.SuperDominion.card = function(name) {
             method : "GET",
             url : the_url,
             onload : function (response) {
-                img_url = new String($(response.responseText).find('.card_img[title="'+name+'"]').attr('src'));
-                img_url = 'http://dominion.diehrstraits.com/' + img_url.slice(2);
-                console.log('img_url: ' + img_url);
+                var x = '.card_img[title="'+addslashes(name)+'"]';
+                var src = new String($(response.responseText).find(x).attr('src'));
+                img_url = 'http://dominion.diehrstraits.com/' + src.slice(2);
                 self.ready = true;
             }
         });
+    };
+    
+    self.draw = function(count) {
+        while (!img_url) {
+        }
+        var rendering = '';
+        for (var i=0; i<count; i++) {
+            var top = i*15;
+            var left = i*20;
+            rendering += '<img style="position:absolute;top:'+top+'px;left:'+left+'px;width:114px;height:182px;" src="' + img_url + '">';
+        }
+        return rendering;
     };
     
     getImageUrl();
