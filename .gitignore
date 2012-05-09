@@ -1,0 +1,12 @@
+.buildpath
+.cache*
+*.sublime*
+.project*
+.settings*
+.externalToolBuilders
+.DS_Store
+*.diff
+*.patch
+*~
+.svn
+.idea
