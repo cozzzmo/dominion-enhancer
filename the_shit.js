@@ -12,6 +12,10 @@ addslashes = function(str) {
     return (str + '').replace(/[\\"']/g, '\\$&').replace(/\u0000/g, '\\0');
 };
 
+function clearLocalCache() {    //in case the cache gets bad data
+    GM_listValues().map(GM_deleteValue);
+}
+
 window.SuperDominion = new function() {
     var self = this;
     var current_hand;
@@ -119,18 +123,33 @@ window.SuperDominion.Card = function(name) {
     self.ready = false;
     
     var getImageUrl = function() {
-        var the_url = "http://dominion.diehrstraits.com/?card=" + encodeURI(name);        
-        console.log('lookup url: ' + the_url);
-        GM_xmlhttpRequest({
-            method : "GET",
-            url : the_url,
-            onload : function (response) {
-                var x = '.card_img[title="'+addslashes(name)+'"]';
-                var src = new String($(response.responseText).find(x).attr('src'));
-                img_url = 'http://dominion.diehrstraits.com/' + src.slice(2);
-                self.ready = true;
-            }
-        });
+        var cardname = encodeURI(name),
+            cachekey = "CardImage." + cardname,
+            storedSrc = GM_getValue(cachekey);
+
+        function setURL(url) {
+            img_url = url;
+            self.ready = true;
+        }
+
+        if (storedSrc) {
+            setURL(storedSrc);
+        }
+        else {
+            var the_url = "http://dominion.diehrstraits.com/?card=" + encodeURI(name);        
+            console.log('lookup url: ' + the_url);
+            GM_xmlhttpRequest({
+                method : "GET",
+                url : the_url,
+                onload : function (response) {
+                    var x = '.card_img[title="'+addSlashes(name)+'"]';
+                    var src = new String($(response.responseText).find(x).attr('src'));
+                    var url = 'http://dominion.diehrstraits.com/' + src.slice(2);
+                    GM_setValue(cachekey, img_url);
+                    setURL(url);
+                }
+            });
+        }
     };
     
     self.draw = function(count) {
